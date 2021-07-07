@@ -11,6 +11,7 @@
    05 Jul 2021 - ms - each motor starts shortly after the previous motor so that they overlap
    06 Jul 2021 - ms - implement the full sequence
    06 Jul 2021 - ms - add a digital input to trigger action
+   07 Jul 2021 - ms - run for at least 3 minutes when triggered
 */
 
 
@@ -28,9 +29,11 @@ Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41);
 const int servoangle[] = {102, 250, 403, 535, 403, 250};
 
 // Timing stuff
-const int stopservoangle = 1500; // Millisecond pause at picture
-const long pulseIncrementDelay = 350; // Microseconds to pause as pulse is being modified
-const int overlapPause = 200; // Millisecond overlap pause
+const int PICTURE_PAUSE_mSEC = 1500; // Millisecond pause at picture
+const long PULSE_MOD_PAUSE_uSEC = 350; // Microseconds to pause as pulse is being modified
+const int OVERLAP_PAUSE_mSEC = 200; // Millisecond overlap pause
+const long MAXRUNTIME_MINUTES = 3; // Run for only 3 minutes
+unsigned long runningStartedAt = 0; // When did we start running?
 
 // Pulse width modification
 const int pulseWidthIncrement = 1; // How much to add or subtract each time
@@ -52,7 +55,7 @@ class Rotator
     int driverNumber;
     int motorNumber;
     int pulseWidthIncrement; // How much to add each time
-    int pulseIncrementDelay; // How long to wait at each step
+    int PULSE_MOD_PAUSE_uSEC; // How long to wait at each step
     int currentPulseWidth;
 
     int targetPulseWidth;
@@ -65,14 +68,14 @@ class Rotator
     void init(int _driverNumber,
               int _motorNumber,
               int _pulseWidthIncrement,
-              int _pulseIncrementDelay,
+              int _PULSE_MOD_PAUSE_uSEC,
               int _currentPulseWidth) {
 
       // Store all arguments in private variables
       driverNumber =  _driverNumber;
       motorNumber = _motorNumber;
       pulseWidthIncrement = _pulseWidthIncrement;
-      pulseIncrementDelay  = _pulseIncrementDelay;
+      PULSE_MOD_PAUSE_uSEC  = _PULSE_MOD_PAUSE_uSEC;
       currentPulseWidth = _currentPulseWidth;
 
       // Clear remaining variables
@@ -133,7 +136,7 @@ class Rotator
         elapsedTime = now - lastPulseWidthUpdate;
       }
 
-      if ( elapsedTime > pulseIncrementDelay) // time to update
+      if ( elapsedTime > PULSE_MOD_PAUSE_uSEC) // time to update
       {
         lastPulseWidthUpdate = now;
         // Serial.println("time to update ");
@@ -179,14 +182,14 @@ void setup() {
     rotators[i].init(1, //  driverNumber
                      i, //  motorNumber
                      pulseWidthIncrement, // How much to add each time
-                     pulseIncrementDelay, // wait after each pulse width change
+                     PULSE_MOD_PAUSE_uSEC, // wait after each pulse width change
                      servoangle[angleIndex]); // each object needs to know where it is now
 
     // Motors 10-19 are on driver 2
     rotators[i + 10].init(2, //  driverNumber
                           i + 10, //  motorNumber
                           pulseWidthIncrement, // How much to add each time
-                          pulseIncrementDelay, // wait after each pulse width change
+                          PULSE_MOD_PAUSE_uSEC, // wait after each pulse width change
                           servoangle[angleIndex]); //  each object needs to know where it is now
   }
   for (int i = 0; i < 10; i++) {
@@ -215,58 +218,59 @@ void setup() {
   all at once overlapping, left to right
   all at once overlapping, center to outside
   repeat
+
+  Stop after 3 minutes, and wait for a trigger (button press)
 */
 void loop() {
 
-  // wait for a switch closure
-  while (!digitalRead(SWITCH1PIN) && !digitalRead(SWITCH2PIN)) {
-    Serial.println("waiting");
-    delay(100);
-  }
+
 
   Serial.print("right to left, index = ");
   Serial.print(angleIndex);
   Serial.println();
-  rightToLeft(angleIndex, overlapPause);
+  rightToLeft(angleIndex, OVERLAP_PAUSE_mSEC);
   angleIndex++;
   angleIndex %= 6;
-  delay(stopservoangle);
+  delay(PICTURE_PAUSE_mSEC);
+
+  blockIfMAXRUNTIME_MINUTESExpired();
 
   Serial.print("from inside to outside, index = ");
   Serial.print(angleIndex);
   Serial.println();
-  insideOut(angleIndex, overlapPause);
+  insideOut(angleIndex, OVERLAP_PAUSE_mSEC);
   angleIndex++;
   angleIndex %= 6;
-  delay(stopservoangle);
+  delay(PICTURE_PAUSE_mSEC);
+
+  blockIfMAXRUNTIME_MINUTESExpired();
 
   Serial.print("left to right, index = ");
   Serial.print(angleIndex);
   Serial.println();
-  leftToRight(angleIndex, overlapPause);
+  leftToRight(angleIndex, OVERLAP_PAUSE_mSEC);
   angleIndex++;
   angleIndex %= 6;
-  delay(stopservoangle);
+  delay(PICTURE_PAUSE_mSEC);
+
+  blockIfMAXRUNTIME_MINUTESExpired();
 
   Serial.print("from inside to outside, index = ");
   Serial.print(angleIndex);
   Serial.println();
-  outsideIn(angleIndex, overlapPause);
+  outsideIn(angleIndex, OVERLAP_PAUSE_mSEC);
   angleIndex++;
   angleIndex %= 6;
-  delay(stopservoangle);
+  delay(PICTURE_PAUSE_mSEC);
 
-  //  // Update all the motors
-  //  for (int i = 0; i < 20; i++) {
-  //    rotators[i].update();
-  //  }
+  blockIfMAXRUNTIME_MINUTESExpired();
 }
 
 
 // All at once, but each one starts a little after the previous
-// overlapPause is the time between when one motor
+// OVERLAP_PAUSE_mSEC is the time between when one motor
 // starts and when the next starts
-void rightToLeft(int index, int overlapPause) {
+void rightToLeft(int index, int OVERLAP_PAUSE_mSEC) {
 
   // Start the first motor
   rotators[0].setTargetPulseWidth(servoangle[angleIndex]);
@@ -274,7 +278,7 @@ void rightToLeft(int index, int overlapPause) {
 
   int i = 1;
   while ( i < 20 ) {
-    if ( (millis() - lastMotorStartedAt) > overlapPause ) {
+    if ( (millis() - lastMotorStartedAt) > OVERLAP_PAUSE_mSEC ) {
       // time to start the next motor
       //      Serial.print("starting motor ");
       //      Serial.print(i);
@@ -282,8 +286,8 @@ void rightToLeft(int index, int overlapPause) {
       //      Serial.print(millis());
       //      Serial.print(" lastMotorStartedAt ");
       //      Serial.print(lastMotorStartedAt);
-      //      Serial.print(" overlapPause ");
-      //      Serial.print(overlapPause);
+      //      Serial.print(" OVERLAP_PAUSE_mSEC ");
+      //      Serial.print(OVERLAP_PAUSE_mSEC);
       //      Serial.println();
       rotators[i].setTargetPulseWidth(servoangle[angleIndex]);
       lastMotorStartedAt = millis();
@@ -303,7 +307,7 @@ void rightToLeft(int index, int overlapPause) {
   waitForAllMotorsToArrive(); // blocking
 }
 
-void leftToRight(int index, int overlapPause) {
+void leftToRight(int index, int OVERLAP_PAUSE_mSEC) {
 
   // Start the last motor
   rotators[19].setTargetPulseWidth(servoangle[angleIndex]);
@@ -311,7 +315,7 @@ void leftToRight(int index, int overlapPause) {
 
   int i = 18;
   while ( i >= 0 ) {
-    if ( (millis() - lastMotorStartedAt) > overlapPause ) {
+    if ( (millis() - lastMotorStartedAt) > OVERLAP_PAUSE_mSEC ) {
       rotators[i].setTargetPulseWidth(servoangle[angleIndex]);
       lastMotorStartedAt = millis();
       i--;
@@ -330,7 +334,7 @@ void leftToRight(int index, int overlapPause) {
   waitForAllMotorsToArrive(); // blocking
 }
 
-void insideOut(int index, int overlapPause) {
+void insideOut(int index, int OVERLAP_PAUSE_mSEC) {
 
   // Start the first two
   rotators[9].setTargetPulseWidth(servoangle[angleIndex]);
@@ -339,7 +343,7 @@ void insideOut(int index, int overlapPause) {
 
   int i = 8;
   while ( i >= 0 ) {
-    if ( (millis() - lastMotorStartedAt) > overlapPause ) {
+    if ( (millis() - lastMotorStartedAt) > OVERLAP_PAUSE_mSEC ) {
       //      Serial.print("doing motors ");
       //      Serial.print(i);
       //      Serial.print(" and ");
@@ -364,7 +368,7 @@ void insideOut(int index, int overlapPause) {
   waitForAllMotorsToArrive(); // blocking
 }
 
-void outsideIn(int index, int overlapPause) {
+void outsideIn(int index, int OVERLAP_PAUSE_mSEC) {
 
   // Start the first two
   rotators[0].setTargetPulseWidth(servoangle[angleIndex]);
@@ -373,7 +377,7 @@ void outsideIn(int index, int overlapPause) {
 
   int i = 1;
   while ( i < 10 ) {
-    if ( (millis() - lastMotorStartedAt) > overlapPause ) {
+    if ( (millis() - lastMotorStartedAt) > OVERLAP_PAUSE_mSEC ) {
       //      Serial.print("doing motors ");
       //      Serial.print(i);
       //      Serial.print(" and ");
@@ -459,4 +463,31 @@ void allAtOnceNoOverlap(int index) {
   }
 
   waitForAllMotorsToArrive(); // blocking
+}
+
+/* if we've been running for longer than the run time,
+    enter an endless loop until we are triggered by
+    one of the two switches being closed
+*/
+
+void blockIfMAXRUNTIME_MINUTESExpired() {
+
+  float minutesRun = (millis() - runningStartedAt) / 60000.0;
+
+  Serial.print("Have been running for this many minutes: ");
+  Serial.println(minutesRun);
+
+  if (minutesRun > MAXRUNTIME_MINUTES) {
+
+    Serial.println("going to sleep until someone presses a switch");
+    // wait for a switch closure
+    while (!digitalRead(SWITCH1PIN) && !digitalRead(SWITCH2PIN)) {
+      Serial.println("waiting");
+      delay(100);
+    }
+
+    // someone pressed a switch! Note the time we started
+    Serial.println("Someone woke us up");
+    runningStartedAt = millis();
+  }
 }
