@@ -264,10 +264,20 @@ void loop() {
   delay(PICTURE_PAUSE_mSEC);
 
   blockIfMAXRUNTIME_MINUTESExpired();
+
+  Serial.print("All at once, index = ");
+  Serial.print(angleIndex);
+  Serial.println();
+  allAtOnce(angleIndex);
+  angleIndex++;
+  angleIndex %= 6;
+  delay(PICTURE_PAUSE_mSEC);
+
+  blockIfMAXRUNTIME_MINUTESExpired();
 }
 
 
-// All at once, but each one starts a little after the previous
+// Right to left, each one starts a little after the previous
 // OVERLAP_PAUSE_mSEC is the time between when one motor
 // starts and when the next starts
 void rightToLeft(int index, int OVERLAP_PAUSE_mSEC) {
@@ -307,6 +317,7 @@ void rightToLeft(int index, int OVERLAP_PAUSE_mSEC) {
   waitForAllMotorsToArrive(); // blocking
 }
 
+// As above but in the other direction
 void leftToRight(int index, int OVERLAP_PAUSE_mSEC) {
 
   // Start the last motor
@@ -401,6 +412,19 @@ void outsideIn(int index, int OVERLAP_PAUSE_mSEC) {
   // so it's OK to block
   waitForAllMotorsToArrive(); // blocking
 }
+
+void allAtOnce(int index) {
+
+  for (int i = 0; i < 20; i++) {
+    rotators[i].setTargetPulseWidth(servoangle[angleIndex]);
+  }
+
+  // all motors have been started, now just wait for them all to arrive.
+  // This function blocks, but it calls the Rotator.update() function
+  // so it's OK to block
+  waitForAllMotorsToArrive(); // blocking
+}
+
 
 // IMPORTANT note that this is a blocking function
 // I.e. it does not return until all motors have arrived. This
