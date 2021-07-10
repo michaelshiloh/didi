@@ -12,6 +12,7 @@
    06 Jul 2021 - ms - implement the full sequence
    06 Jul 2021 - ms - add a digital input to trigger action
    07 Jul 2021 - ms - run for at least 3 minutes when triggered
+   09 Jul 2021 - ms - added a sequence where they all rotate together
 */
 
 
