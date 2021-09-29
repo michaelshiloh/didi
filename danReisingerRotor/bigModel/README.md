@@ -28,3 +28,5 @@ prototyping shield layout:
 Note that there are two I2C connectors; since I2C is daisychained, these are
 identical connectors and can be used interchangeably. In addition to the two
 I2C pins, power and ground are also provided.
+
+Detailed wiring [instructions](doc/assemblyInstructions.docx)
