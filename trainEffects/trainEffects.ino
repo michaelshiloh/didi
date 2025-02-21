@@ -1,14 +1,14 @@
-/*************************************************** 
+/***************************************************
   This is an example for the Adafruit VS1053 Codec Breakout
 
-  Designed specifically to work with the Adafruit VS1053 Codec Breakout 
+  Designed specifically to work with the Adafruit VS1053 Codec Breakout
   ----> https://www.adafruit.com/products/1381
 
-  Adafruit invests time and resources providing this open source code, 
-  please support Adafruit and open-source hardware by purchasing 
+  Adafruit invests time and resources providing this open source code,
+  please support Adafruit and open-source hardware by purchasing
   products from Adafruit!
 
-  Written by Limor Fried/Ladyada for Adafruit Industries.  
+  Written by Limor Fried/Ladyada for Adafruit Industries.
   BSD license, all text above must be included in any redistribution
  ****************************************************/
 
@@ -21,7 +21,7 @@
 //#define CLK 13       // SPI Clock, shared with SD card
 //#define MISO 12      // Input data, from VS1053/SD card
 //#define MOSI 11      // Output data, to VS1053/SD card
-// Connect CLK, MISO and MOSI to hardware SPI pins. 
+// Connect CLK, MISO and MOSI to hardware SPI pins.
 // See http://arduino.cc/en/Reference/SPI "Connections"
 
 // These are the pins used for the breakout example
@@ -38,32 +38,38 @@
 // DREQ should be an Int pin, see http://arduino.cc/en/Reference/attachInterrupt
 #define DREQ 3       // VS1053 Data request, ideally an Interrupt pin
 
-Adafruit_VS1053_FilePlayer musicPlayer = 
+Adafruit_VS1053_FilePlayer musicPlayer =
   // create breakout-example object!
- // Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+  // Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
   // create shield-example object!
   Adafruit_VS1053_FilePlayer(SHIELD_RESET, SHIELD_CS, SHIELD_DCS, DREQ, CARDCS);
-  
+
+// switches
+const int SW1_PIN = A0;
+const int SW2_PIN = A1;
+const int SW3_PIN = A2;
+const int SW4_PIN = A3;
+
 void setup() {
   Serial.begin(9600);
   Serial.println("Adafruit VS1053 Simple Test");
 
   if (! musicPlayer.begin()) { // initialise the music player
-     Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
-     while (1);
+    Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
+    while (1);
   }
   Serial.println(F("VS1053 found"));
-  
-   if (!SD.begin(CARDCS)) {
+
+  if (!SD.begin(CARDCS)) {
     Serial.println(F("SD failed, or not present"));
     while (1);  // don't do anything more
   }
 
   // list files
- // printDirectory(SD.open("/"), 0);
-  
+  // printDirectory(SD.open("/"), 0);
+
   // Set volume for left, right channels. lower numbers == louder volume!
-  musicPlayer.setVolume(20,20);
+  musicPlayer.setVolume(1, 1);
 
   // Timer interrupts are not suggested, better to use DREQ interrupt!
   //musicPlayer.useInterrupt(VS1053_FILEPLAYER_TIMER0_INT); // timer int
@@ -71,58 +77,98 @@ void setup() {
   // If DREQ is on an interrupt pin (on uno, #2 or #3) we can do background
   // audio playing
   musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);  // DREQ int
-  
- // musicPlayer.playFullFile("/track001.mp3"); 
+
+  // musicPlayer.playFullFile("/track001.mp3");
   //musicPlayer.startPlayingFile("/track002.mp3");
+
+  // switch setup
+  pinMode(SW1_PIN, INPUT_PULLUP);
+  pinMode(SW2_PIN, INPUT_PULLUP);
+  pinMode(SW3_PIN, INPUT_PULLUP);
+  pinMode(SW4_PIN, INPUT_PULLUP);
+
+  // run through all the sounds
+  musicPlayer.playFullFile("/track001.mp3");
+  musicPlayer.playFullFile("/track002.mp3");
+  musicPlayer.playFullFile("/track003.mp3");
+  musicPlayer.playFullFile("/track004.mp3");
+  musicPlayer.playFullFile("/track005.mp3");
+  musicPlayer.playFullFile("/track006.mp3");
+  musicPlayer.playFullFile("/track007.wav");
+  musicPlayer.playFullFile("/track008.wav");
 }
 
 void loop() {
   // File is playing in the background
   if (musicPlayer.stopped()) {
-  //  Serial.println("Done playing music");
-   
+    //  Serial.println("Done playing music");
   }
+
   if (Serial.available()) {
     char c = Serial.read();
-    
+
     // if we get an 's' on the serial console, stop!
     if (c == 's') {
       musicPlayer.stopPlaying();
     }
-    
+
     // if we get an 'p' on the serial console, pause/unpause!
     if (c == 'p') {
       if (! musicPlayer.paused()) {
         Serial.println("Paused");
         musicPlayer.pausePlaying(true);
-      } else { 
+      } else {
         Serial.println("Resumed");
         musicPlayer.pausePlaying(false);
       }
     }
-    
+
     // if we get an '1' on the serial console, play track 1
     if (c == '1') {
       musicPlayer.stopPlaying();
       musicPlayer.startPlayingFile("/track001.mp3");
     }
-    
+
     // if we get an '2' on the serial console, play track 2
     if (c == '2') {
       musicPlayer.stopPlaying();
       musicPlayer.startPlayingFile("/track002.mp3");
     }
-    
+
     if (c == '3') {
       musicPlayer.stopPlaying();
       musicPlayer.startPlayingFile("/track003.mp3");
     }
-    
+
     if (c == '4') {
       musicPlayer.stopPlaying();
       musicPlayer.startPlayingFile("/track004.mp3");
     }
   }
+  // now by switches
+
+  if (LOW == digitalRead(SW1_PIN)) {
+    Serial.println(F("switch 1 detected"));
+    musicPlayer.stopPlaying();
+    musicPlayer.startPlayingFile("/track001.mp3");
+  }
+
+  if (LOW == digitalRead(SW2_PIN)) {
+    musicPlayer.stopPlaying();
+    musicPlayer.startPlayingFile("/track002.mp3");
+  }
+
+  if (LOW == digitalRead(SW3_PIN)) {
+    musicPlayer.stopPlaying();
+    musicPlayer.startPlayingFile("/track003.mp3");
+  }
+
+  if (LOW == digitalRead(SW4_PIN)) {
+    while (!musicPlayer.stopped()) {
+    }
+    musicPlayer.startPlayingFile("/track004.mp3");
+  }
+
 
   delay(100);
 }
@@ -130,26 +176,26 @@ void loop() {
 
 /// File listing helper
 void printDirectory(File dir, int numTabs) {
-   while(true) {
-     
-     File entry =  dir.openNextFile();
-     if (! entry) {
-       // no more files
-       //Serial.println("**nomorefiles**");
-       break;
-     }
-     for (uint8_t i=0; i<numTabs; i++) {
-       Serial.print('\t');
-     }
-     Serial.print(entry.name());
-     if (entry.isDirectory()) {
-       Serial.println("/");
-       printDirectory(entry, numTabs+1);
-     } else {
-       // files have sizes, directories do not
-       Serial.print("\t\t");
-       Serial.println(entry.size(), DEC);
-     }
-     entry.close();
-   }
+  while (true) {
+
+    File entry =  dir.openNextFile();
+    if (! entry) {
+      // no more files
+      //Serial.println("**nomorefiles**");
+      break;
+    }
+    for (uint8_t i = 0; i < numTabs; i++) {
+      Serial.print('\t');
+    }
+    Serial.print(entry.name());
+    if (entry.isDirectory()) {
+      Serial.println("/");
+      printDirectory(entry, numTabs + 1);
+    } else {
+      // files have sizes, directories do not
+      Serial.print("\t\t");
+      Serial.println(entry.size(), DEC);
+    }
+    entry.close();
+  }
 }
